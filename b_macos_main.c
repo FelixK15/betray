@@ -1,7 +1,3 @@
-#ifdef __APPLE_CC__
-
-// this code should work if compiled as C99+ or Objective-C (with or without ARC)
-
 // we don't need much here
 #include <stdlib.h>
 #include <limits.h>
@@ -9,52 +5,27 @@
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
-#include <objc/objc.h>
-#include <objc/runtime.h>
-#include <objc/message.h>
-#include <objc/NSObjCRuntime.h>
 #include <mach-o/dyld.h>
 #include <OpenGL/gl.h>
 #include <dlfcn.h>
 #include "betray.h"
 
-// maybe this is available somewhere in objc runtime?
-#if __LP64__ || (TARGET_OS_EMBEDDED && !TARGET_OS_IPHONE) || TARGET_OS_WIN32 || NS_BUILD_32_LIKE_64
-#define NSIntegerEncoding "q"
-#define NSUIntegerEncoding "L"
-#else
-#define NSIntegerEncoding "i"
-#define NSUIntegerEncoding "I"
-#endif
-
-#ifdef __OBJC__
-#import <Cocoa/Cocoa.h>
-#else
-// this is how they are defined originally
-#include <CoreGraphics/CGBase.h>
-#include <CoreGraphics/CGGeometry.h>
-typedef CGPoint NSPoint;
-typedef CGRect NSRect;
-
-extern id NSApp;
-extern id const NSDefaultRunLoopMode;
-#endif
-
-#if defined(__OBJC__) && __has_feature(objc_arc)
-#define ARC_AVAILABLE
-#endif
-
-// ABI is a bit different between platforms
-#ifdef __arm64__
-#define abi_objc_msgSend_stret objc_msgSend
-#else
-#define abi_objc_msgSend_stret objc_msgSend_stret
-#endif
-#ifdef __i386__
-#define abi_objc_msgSend_fpret objc_msgSend_fpret
-#else
-#define abi_objc_msgSend_fpret objc_msgSend
-#endif
+#include "macos/c-ocoa/nsapplication.c"
+#include "macos/c-ocoa/nswindow.c"
+#include "macos/c-ocoa/nscolor.c"
+#include "macos/c-ocoa/nsprocessinfo.c"
+#include "macos/c-ocoa/nsmenu.c"
+#include "macos/c-ocoa/nsmenuitem.c"
+#include "macos/c-ocoa/nsscreen.c"
+#include "macos/c-ocoa/nsarray.c"
+#include "macos/c-ocoa/nsobject.c"
+#include "macos/c-ocoa/nsview.c"
+#include "macos/c-ocoa/nsopenglpixelformat.c"
+#include "macos/c-ocoa/nsopenglcontext.c"
+#include "macos/c-ocoa/nsstring.c"
+#include "macos/c-ocoa/nsdate.c"
+#include "macos/c-ocoa/nsevent.c"
+#include "macos/c-ocoa/uifont.c"
 
 bool terminated = false;
 uint32_t windowCount = 0;
@@ -147,17 +118,8 @@ boolean b_init_display_opengl(uint size_x, uint size_y, boolean full_screen, uin
     id pool = ((id (*)(id, SEL))objc_msgSend)(poolAlloc, initSel);
     */
 
-	//[NSApplication sharedApplication];
-	Class NSApplicationClass = objc_getClass("NSApplication");
-	SEL sharedApplicationSel = sel_registerName("sharedApplication");
-	((id (*)(Class, SEL))objc_msgSend)(NSApplicationClass, sharedApplicationSel);
-        
-        
-
-
-	//[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
-	SEL setActivationPolicySel = sel_registerName("setActivationPolicy:");
-	((void (*)(id, SEL, NSInteger))objc_msgSend)(NSApp, setActivationPolicySel, 0);
+	nsapplication_t nsapp = nsapplication_sharedApplication();
+	nsapplication_setActivationPolicy(nsapp, 0);
 
 	//AppDelegate * dg = [[AppDelegate alloc] init];
 	Class NSObjectClass = objc_getClass("NSObject");
@@ -174,165 +136,80 @@ boolean b_init_display_opengl(uint size_x, uint size_y, boolean full_screen, uin
 	SEL autoreleaseSel = sel_registerName("autorelease");
 	((void (*)(id, SEL))objc_msgSend)(dg, autoreleaseSel);
 
-	//[NSApp setDelegate:dg];
-	SEL setDelegateSel = sel_registerName("setDelegate:");
-	((void (*)(id, SEL, id))objc_msgSend)(NSApp, setDelegateSel, dg);
+	nsapplication_setDelegate( nsapp, dg );
 
 	// only needed if we don't use [NSApp run]
 	//[NSApp finishLaunching];
-	SEL finishLaunchingSel = sel_registerName("finishLaunching");
-	((void (*)(id, SEL))objc_msgSend)(NSApp, finishLaunchingSel);
+	nsapplication_finishLaunching( nsapp );
 
 	//id menubar = [[NSMenu alloc] init];
-	Class NSMenuClass = objc_getClass("NSMenu");
-	id menubarAlloc = ((id (*)(Class, SEL))objc_msgSend)(NSMenuClass, allocSel);
-	id menubar = ((id (*)(id, SEL))objc_msgSend)(menubarAlloc, initSel);
-	((void (*)(id, SEL))objc_msgSend)(menubar, autoreleaseSel);
+	nsmenu_t menubar = nsmenu_init( nsmenu_alloc() );
+	nsmenu_autorelease( menubar );
 
 	//id appMenuItem = [[NSMenuItem alloc] init];
-	Class NSMenuItemClass = objc_getClass("NSMenuItem");
-	id appMenuItemAlloc = ((id (*)(Class, SEL))objc_msgSend)(NSMenuItemClass, allocSel);
-	id appMenuItem = ((id (*)(id, SEL))objc_msgSend)(appMenuItemAlloc, initSel);
-	((void (*)(id, SEL))objc_msgSend)(appMenuItem, autoreleaseSel);
+	nsmenuitem_t appMenuItem = nsmenuitem_init( nsmenuitem_alloc() );
+	nsmenuitem_autorelease( appMenuItem );
 
 	//[menubar addItem:appMenuItem];
-	SEL addItemSel = sel_registerName("addItem:");
-	((void (*)(id, SEL, id))objc_msgSend)(menubar, addItemSel, appMenuItem);
+	nsmenu_addItem( appMenuItem );
 
 	//[NSApp setMainMenu:menubar];
-	SEL setMainMenuSel = sel_registerName("setMainMenu:");
-	((id (*)(id, SEL, id))objc_msgSend)(NSApp, setMainMenuSel, menubar);
+	nsapplication_setMainMenu( menubar );
 
 	//id appMenu = [[NSMenu alloc] init];
-	id appMenuAlloc = ((id (*)(Class, SEL))objc_msgSend)(NSMenuClass, allocSel);
-	id appMenu = ((id (*)(id, SEL))objc_msgSend)(appMenuAlloc, initSel);
-	((void (*)(id, SEL))objc_msgSend)(appMenu, autoreleaseSel);
+	nsmenu_t appMenu = nsmenu_init( nsmenu_alloc() );
+	nsmenu_autorelease( appMenu );
 
 	//id appName = [[NSProcessInfo processInfo] processName];
-	Class NSProcessInfoClass = objc_getClass("NSProcessInfo");
-	SEL processInfoSel = sel_registerName("processInfo");
-	id processInfo = ((id (*)(Class, SEL))objc_msgSend)(NSProcessInfoClass, processInfoSel);
-	SEL processNameSel = sel_registerName("processName");
-	id appName = ((id (*)(id, SEL))objc_msgSend)(processInfo, processNameSel);
+	nsprocessinfo_t processInfo = nsprocessinfo_processInfo();
+	nsstring_t appName = nsprocessinfo_processName(processInfo);
 
 	//id quitTitle = [@"Quit " stringByAppendingString:appName];
-	Class NSStringClass = objc_getClass("NSString");
-	SEL stringWithUTF8StringSel = sel_registerName("stringWithUTF8String:");
-	id quitTitlePrefixString = ((id (*)(Class, SEL, const char*))objc_msgSend)(NSStringClass, stringWithUTF8StringSel, "Quit ");
-	SEL stringByAppendingStringSel = sel_registerName("stringByAppendingString:");
-	id quitTitle = ((id (*)(id, SEL, id))objc_msgSend)(quitTitlePrefixString, stringByAppendingStringSel, appName);
-
+	nsstring_t quitTitlePrefix = nsstring_stringWithUTF8String( "Quit " );
+    nsstring_t quitTitle = nsstring_stringByAppendingString( quitTitlePrefix, appName );
+    
 	//id quitMenuItem = [[NSMenuItem alloc] initWithTitle:quitTitle action:@selector(terminate:) keyEquivalent:@"q"];
-	id quitMenuItemKey = ((id (*)(Class, SEL, const char*))objc_msgSend)(NSStringClass, stringWithUTF8StringSel, "q");
-	id quitMenuItemAlloc = ((id (*)(Class, SEL))objc_msgSend)(NSMenuItemClass, allocSel);
-	SEL initWithTitleSel = sel_registerName("initWithTitle:action:keyEquivalent:");
-	SEL terminateSel = sel_registerName("terminate:");
-	id quitMenuItem = ((id (*)(id, SEL, id, SEL, id))objc_msgSend)(quitMenuItemAlloc, initWithTitleSel, quitTitle, terminateSel, quitMenuItemKey);
-	((void (*)(id, SEL))objc_msgSend)(quitMenuItem, autoreleaseSel);
+	nsstring_t quitMenuItemKey = nsstring_stringWithUTF8String( "q" );
+    nsmenuitem_t quitMenuItem = nsmenuitem_initWithTitle( nsmenuitem_alloc(), quitTitle, sel_registerName("terminate:"), quitMenuItemKey );
 
 	//[appMenu addItem:quitMenuItem];
-	((void (*)(id, SEL, id))objc_msgSend)(appMenu, addItemSel, quitMenuItem);
+	nsmenu_addItem( appMenu, quitMenuItem );
 
 	//[appMenuItem setSubmenu:appMenu];
-	SEL setSubmenuSel = sel_registerName("setSubmenu:");
-	((void (*)(id, SEL, id))objc_msgSend)(appMenuItem, setSubmenuSel, appMenu);
+	nsmenuitem_setSubmenu( appMenuItem, appMenu );
 
-    Class NSScreenClass = objc_getClass("NSScreen");
-    SEL mainScreensSel = sel_registerName("mainScreen");
-    id mainScreen = ((id (*)(Class, SEL))objc_msgSend)(NSScreenClass, mainScreensSel);
-    SEL screensSel = sel_registerName("screens");
-    id screen_array = ((id (*)(Class, SEL))objc_msgSend)(NSScreenClass, screensSel);
-    SEL countSel = sel_registerName("count");
-    uint array_length = ((uint (*)(Class, SEL))objc_msgSend)(screen_array, countSel);
-   
-    SEL objectAtIndexSel = sel_registerName("objectAtIndex:");
-    id specific_screen = ((id (*)(Class, SEL, uint))objc_msgSend)(screen_array, objectAtIndexSel, 0);
-        
-        
-    SEL visibleFrameSel = sel_registerName("frame");
-    NSRect rect = ((NSRect (*)(id, SEL))abi_objc_msgSend_stret)(specific_screen, visibleFrameSel);
-        
-    betray_screen_screen_resolution_x = rect.size.width;
-    betray_screen_screen_resolution_y = rect.size.height;
- 
- //   NSRect adjustFrame = ((NSRect (*)(id, SEL))abi_objc_msgSend_stret)(betray_content_view, frameSel)
-	//id window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 500, 500) styleMask:NSTitledWindowMask | NSClosableWindowMask | NSMiniaturizableWindowMask | NSResizableWindowMask backing:NSBackingStoreBuffered defer:NO];
-	;
-    rect.origin.x = 0;
-    rect.origin.y = 0;
+    nsapplication_finishLaunching( nsapp );
+
+
+    nsscreen_t mainScreen = nsscreen_mainScreen();
+    nsarray_t screens = nsscreen_screens();
+    unsigned long long screenCount = nsarray_count( screens );
+    nsscreen_t specificScreen = nsarray_objectAtIndex( screens, 0u );
+    CGRect frameRect = nsscreen_frame( mainScreen );
+
+    betray_screen_screen_resolution_x = frameRect.member1.member0;
+    betray_screen_screen_resolution_y = frameRect.member1.member1;
+
+    nswindow_t betrayWindow = nswindow_initWithContentRect( nswindow_alloc(), frameRect, 15, 2, NO );
+    
+    nsobject_autorelease( betrayWindow );
+
+    nswindow_setReleasedWhenClosed( betrayWindow, NO );
+
+    nsview_t betrayContentView = nswindow_contentView( betrayWindow );
+    nsview_setWantsBestResolutionOpenGLSurface( betrayContentView, YES );
+
+    CGPoint point = {0, 0};
+
     if(size_x != 0)
-        rect.size.width = size_x;
+      point.member0 = (betray_screen_screen_resolution_x - size_x) / 2;
     if(size_y != 0)
-        rect.size.height = size_y;
-	Class NSWindowClass = objc_getClass("NSWindow");
-	id windowAlloc = ((id (*)(Class, SEL))objc_msgSend)(NSWindowClass, allocSel);
-	SEL initWithContentRectSel = sel_registerName("initWithContentRect:styleMask:backing:defer:");
-	betray_window = ((id (*)(id, SEL, NSRect, NSUInteger, NSUInteger, BOOL))objc_msgSend)(windowAlloc, initWithContentRectSel, rect, 15, 2, NO);
-	((void (*)(id, SEL))objc_msgSend)(betray_window, autoreleaseSel);
+       point.member1 = (betray_screen_screen_resolution_y + size_y) / 2;
 
-	// when we are not using ARC, than window will be added to autorelease pool
-	// so if we close it by hand (pressing red button), we don't want it to be released for us
-	// so it will be released by autorelease pool later
-	//[window setReleasedWhenClosed:NO];
-	SEL setReleasedWhenClosedSel = sel_registerName("setReleasedWhenClosed:");
-	((void (*)(id, SEL, BOOL))objc_msgSend)(betray_window, setReleasedWhenClosedSel, NO);
+    nswindow_cascadeTopLeftFromPoint( betrayWindow, point );
 
-	windowCount = 1;
-
-	//WindowDelegate * wdg = [[WindowDelegate alloc] init];
-	Class WindowDelegateClass = objc_allocateClassPair(NSObjectClass, "WindowDelegate", 0);
-	Protocol* NSWindowDelegateProtocol = objc_getProtocol("NSWindowDelegate");
-	resultAddProtoc = class_addProtocol(WindowDelegateClass, NSWindowDelegateProtocol);
-	assert(resultAddProtoc);
-	SEL windowWillCloseSel = sel_registerName("windowWillClose:");
-	resultAddMethod = class_addMethod(WindowDelegateClass, windowWillCloseSel, (IMP)windowWillClose,  "v@:@");
-	assert(resultAddMethod);
-	id wdgAlloc = ((id (*)(Class, SEL))objc_msgSend)(WindowDelegateClass, allocSel);
-	id wdg = ((id (*)(id, SEL))objc_msgSend)(wdgAlloc, initSel);
-	((void (*)(id, SEL))objc_msgSend)(wdg, autoreleaseSel);
-
-	//[window setDelegate:wdg];
-	((void (*)(id, SEL, id))objc_msgSend)(betray_window, setDelegateSel, wdg);
-        
-        
-
-  //
-
-	//NSView * contentView = [window contentView];
-	SEL contentViewSel = sel_registerName("contentView");
-	betray_content_view = ((id (*)(id, SEL))objc_msgSend)(betray_window, contentViewSel);
-
-	// disable this if you don't want retina support
-	//[contentView setWantsBestResolutionOpenGLSurface:YES];
-	SEL setWantsBestResolutionOpenGLSurfaceSel = sel_registerName("setWantsBestResolutionOpenGLSurface:");
-	((void (*)(id, SEL, BOOL))objc_msgSend)(betray_content_view, setWantsBestResolutionOpenGLSurfaceSel, YES);
-
-	//[window cascadeTopLeftFromPoint:NSMakePoint(20,20)];
-    NSPoint point = {0, 0};
-    if(size_x != 0)
-       point.x = (betray_screen_screen_resolution_x - size_x) / 2;
-    if(size_y != 0)
-       point.y = (betray_screen_screen_resolution_y + size_y) / 2;
-	SEL cascadeTopLeftFromPointSel = sel_registerName("cascadeTopLeftFromPoint:");
-	((void (*)(id, SEL, NSPoint))objc_msgSend)(betray_window, cascadeTopLeftFromPointSel, point);
-
-	id titleString = ((id (*)(Class, SEL, const char*))objc_msgSend)(NSStringClass, stringWithUTF8StringSel, caption);
-	SEL setTitleSel = sel_registerName("setTitle:");
-	((void (*)(id, SEL, id))objc_msgSend)(betray_window, setTitleSel, titleString);
-
-	//NSOpenGLPixelFormatAttribute glAttributes[] =
-	//{
-	//	NSOpenGLPFAColorSize, 24,
-	//	NSOpenGLPFAAlphaSize, 8,
-	//	NSOpenGLPFADoubleBuffer,
-	//	NSOpenGLPFAAccelerated,
-	//	NSOpenGLPFANoRecovery,
-	//	NSOpenGLPFASampleBuffers, 1,
-	//	NSOpenGLPFASamples, 4,
-	//	NSOpenGLPFAOpenGLProfile, NSOpenGLProfileVersionLegacy, // or NSOpenGLProfileVersion3_2Core
-	//	0
-	//};
-    for(i = 0; i < 3; i++)
+    nsopenglcontext_t openglContextDefault = NULL;
+    for(uint32_t i = 0; i < 3; i++)
     {
         uint32_t glAttributes[] = {
 		8, 24,
@@ -347,68 +224,39 @@ boolean b_init_display_opengl(uint size_x, uint size_y, boolean full_screen, uin
 		0};
         uint32_t version[] = {0x4100, 0x3200, 0x1000};
         glAttributes[12] = version[i];
-        glAttributes[10] = samples;
-
-	//NSOpenGLPixelFormat * pixelFormat = [[NSOpenGLPixelFormat alloc] initWithAttributes:glAttributes];
-        Class NSOpenGLPixelFormatClass = objc_getClass("NSOpenGLPixelFormat");
-        id pixelFormatAlloc = ((id (*)(Class, SEL))objc_msgSend)(NSOpenGLPixelFormatClass, allocSel);
-        SEL initWithAttributesSel = sel_registerName("initWithAttributes:");
-        id pixelFormat = ((id (*)(id, SEL, const uint32_t*))objc_msgSend)(pixelFormatAlloc, initWithAttributesSel, glAttributes);
-        ((void (*)(id, SEL))objc_msgSend)(pixelFormat, autoreleaseSel);
-
-	//NSOpenGLContext * openGLContext = [[NSOpenGLContext alloc] initWithFormat:pixelFormat shareContext:nil];
-        Class NSOpenGLContextClass = objc_getClass("NSOpenGLContext");
-        id openGLContextAlloc = ((id (*)(Class, SEL))objc_msgSend)(NSOpenGLContextClass, allocSel);
-        SEL initWithFormatSel = sel_registerName("initWithFormat:shareContext:");
-        betray_opengl_context_default = ((id (*)(id, SEL, id, id))objc_msgSend)(openGLContextAlloc, initWithFormatSel, pixelFormat, nil);
-        if(betray_opengl_context_default != NULL)
-            break;
-    }
-    betray_opengl_context_current = betray_opengl_context_default;
-	((void (*)(id, SEL))objc_msgSend)(betray_opengl_context_current, autoreleaseSel);
-
-	//[openGLContext setView:contentView];
-	SEL setViewSel = sel_registerName("setView:");
-	((void (*)(id, SEL, id))objc_msgSend)(betray_opengl_context_current, setViewSel, betray_content_view);
-
-	//[window makeKeyAndOrderFront:window];
-	SEL makeKeyAndOrderFrontSel = sel_registerName("makeKeyAndOrderFront:");
-	((void (*)(id, SEL, id))objc_msgSend)(betray_window, makeKeyAndOrderFrontSel, betray_window);
-
-	//[window setAcceptsMouseMovedEvents:YES];
-	SEL setAcceptsMouseMovedEventsSel = sel_registerName("setAcceptsMouseMovedEvents:");
-	((void (*)(id, SEL, BOOL))objc_msgSend)(betray_window, setAcceptsMouseMovedEventsSel, YES);
-
-	//[window setBackgroundColor:[NSColor blackColor]];
-	Class NSColorClass = objc_getClass("NSColor");
-	id blackColor = ((id (*)(Class, SEL))objc_msgSend)(NSColorClass, sel_registerName("blackColor"));
-	SEL setBackgroundColorSel = sel_registerName("setBackgroundColor:");
-	((void (*)(id, SEL, id))objc_msgSend)(betray_window, setBackgroundColorSel, blackColor);
-
-	// TODO do we really need this?
-	//[NSApp activateIgnoringOtherApps:YES];
-	SEL activateIgnoringOtherAppsSel = sel_registerName("activateIgnoringOtherApps:");
-	((void (*)(id, SEL, BOOL))objc_msgSend)(NSApp, activateIgnoringOtherAppsSel, YES);
-
-    if(full_screen)
-    {
-//        SEL setCollectionBehaviorSel = sel_registerName("setCollectionBehavior");
-//        ((void (*)(id, SEL, uint64))objc_msgSend)(betray_window, setCollectionBehaviorSel, 1 << 7); /*NSWindowCollectionBehaviorFullScreenPrimary*/
-    }
-    SEL makeCurrentContextSel = sel_registerName("makeCurrentContext");
-    ((void (*)(id, SEL))objc_msgSend)(betray_opengl_context_current, makeCurrentContextSel);
         
-    SEL presentationOptionsSel = sel_registerName("presentationOptions");
-    ((id (*)(id, SEL, uint))objc_msgSend)(NSApp, presentationOptionsSel, (1 << 10));
-    
-    /*
-    //[pool release];
-    ((void (*)(id, SEL))objc_msgSend)(pool, releaseSel);
-    */
+        nsopenglpixelformat_t pixelFormat = nsopenglpixelformat_initWithAttributes( nsopenglpixelformat_alloc(), glAttributes );
+        nsobject_autorelease( pixelFormat );
+        
+        openglContextDefault = nsopenglcontext_initWithFormat( nsopenglcontext_alloc(), pixelFormat, nil );
+        if( openglContextDefault != NULL )
+        {
+            break;
+        }
+    }
+
+    if( openglContextDefault == NULL )
+    {
+        return FALSE;
+    }
+
+    nsobject_autorelease( openglContextDefault );
+    nsopenglcontext_setView( openglContextDefault, betrayContentView );
+
+    nsstring_t caption = nsstring_stringWithUTF8String( "Hello from C-Ocoa" );
+    nswindow_setTitle( betrayWindow, caption );
+
+    nswindow_makeKeyAndOrderFront( betrayWindow, betrayWindow );
+    nswindow_setAcceptsMouseMovedEvents( betrayWindow, YES );
+    nswindow_setBackgroundColor( betrayWindow, nscolor_blackColor() );
+
+    nsapplication_activateIgnoringOtherApps( nsapp, YES );
+
+    nsopenglcontext_makeCurrentContext( openglContextDefault );
+    nsapplication_setPresentationOptions( nsapp, (1<<10) );
 
     return TRUE;
 }
-
 
 void betray_launch_main_loop(void)
 {
