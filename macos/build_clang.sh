@@ -28,7 +28,7 @@ then
 fi
 
 OutputFile="${BuildFolder}/zenith"
-InputCFile="${ScriptDirectory}/b_ios_main.c"
+InputCFile="${ScriptDirectory}/b_macos_main.c"
 Libraries="-lobjc"
 Frameworks="-framework CoreFoundation -framework AppKit"
 
