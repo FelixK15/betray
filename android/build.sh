@@ -60,7 +60,7 @@ testifySourceFiles=("t_discover.c" "t_main.c" "t_network.c" "t_pack.c" "t_parser
 zenithSourceFiles=("zenith2_assets.c" "zenith2_debug.c" "zenith2_interface.c" "zenith2_main.c")
 hxaSourceFiles=("hxa_load_save.c" "hxa_util_inflate.c" "hxa_util_png.c" "hxa_util_blur.c")
 parallaxSourceFiles=("parallax_controller_testify_util.c" "parallax_controller_compatebility_implemenation.c" "parallax_controller_main.c" "parallax_controller_remote.c" "parallax_shared_encrypt.c")
-androidNativeAppGlueSourceFiles=("betray_android_native_app_glue.c")
+androidNativeAppGlueSourceFiles=("b_android_native_app_glue.c")
 
 sourceFiles=( "${betraySourceFiles[@]}" "${forgeSourceFiles[@]}" "${imagineSourceFiles[@]}" "${relinquishSourceFiles[@]}" "${seduceSourceFiles[@]}" "${testifySourceFiles[@]}" "${zenithSourceFiles[@]}" "${hxaSourceFiles[@]}" "${parallaxSourceFiles[@]}" "${androidNativeAppGlueSourceFiles[@]}" )
 
